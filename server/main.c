@@ -1,3 +1,6 @@
+#include "config.h"
+#include "arguments.h"
+//#include "server.h" lo comento para hacer pruebas
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -6,104 +9,42 @@
 #include <string.h>
 
 
-#include "server.h"
 
-// return master_socket
-int server_init(const char *ip, int port){
 
-    //este master_socket es local
-    int server_socket = socket(AF_INET, SOCK_STREAM, 0);
-    if(server_socket < 0){
-        //genero el error y le pido al sistema operativo que me diga porque fue el error
-        perror("Error socket cretion : ");
-        return -1;
-        //al retortan -1 el socket maestro, el main va a salir porque salio mal la creacion
+
+int main(int argc, char *argv[]){
+    struct arguments args; //ver de donde saco esa libreria 'arguments'
+
+    if(parse_arguments(argc, argv, &args) != 0){
+        return EXIT_FAILURE;
     }
 
-    //primitiva del sistema que me permite alterar el socket
-    const int opt = 1;
-    if(setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, &opt, size(opt)) < 0){
-        perror("Error setting SO_REUSEADDR");
-        close(server_socket);
-        return -1;
+    printf("Start server on %s:%d\n", args.address, args.port); // es para debuggear
+
+    int master_socket = server_init(args.address, args.port);
+
+    if(master_socket < 0){
+        return EXIT_FAILURE;
     }
 
-    struct sockaddr_in server_addr;
-    server_addr.sin_family = AF_INET;
-    server_addr.sin_port = htons(port);
-
-    if(inet_pton(AF_INET, ip, &server_addr.sin_addr) < 0){
-        fprintf(stderr, "Invalid IP address %s\n", ip);
-        close(server_socket);
-        return -1;
-    }
-
-    if (bind(server_socket, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0){
-        perror("Bind failed");
-        close(server_socket);
-        return -1;
-    }
-
-    //veo en que interface esta escuchando el server, ya no pongo ANY_ADDR
-    //hay que instaciar un buffer y llamadas al sistema, por ahora no lo hacemos
-
-    // cuantas conexiones puedo tener en listen, el lo pone a SOMA.. con una sola N
-    if(listen(server_socket, SOMAXCONN) < 0){
-        perror("Listen failed");
-        close(server_socket);
-        return -1;
-    }
-
-    //si llego aca es porque pude abrir el sistema y retorno el socket
-    return server_socket;
-
-}
-
-int server_accept(int socket){
-    //creo estructura para recibir el nuevo socket, el qeu voy a crear aca
-    
-    struct sockaddr_in slave_addr;
-    socklen_t slave_addr_len; 
-    /*El lo hizo de esta forma pero de error*/
-    //struct sockaddr slave_addr;
-    //socklen_t slave_addr_len = sizeof(slave_addr);
-    int slave_socket = accept(socket, (struct sockaddr *)&slave_addr, &slave_addr_len);
-    if(slave_socket < 0){
-        perror("Accept failed");
-        return -1;
-        //el master no sale porque quiere obtener un cliente
-    }
-
-    //creo struct , no se donde esta definida INET_ADDRLEN
-    char ip_str[INET_ADDRLEN];
-    inet_ntop(AF_INET, &slave_addr.sin_addr, ip_str, sizeof(ip_str));
-
-    fprintf(stderr, "Connection from %s:%d\n", ip_str, ntohs(slave_addr.sin_port));
-
-    return slave_socket;
-}
-
-void server_loop(int socket){
-    //esto creo ya es parte del manejador que tenemos que hacer nosotros
-    session_init(socket);
-    
-    //si welcome falla salgo de ahi, current_sess es el unico puntero global que tiene la aplicacion
-    //creo que lo necesita para el tema de las señales
-    if(welcome(current_sess) < 0){
-        return;
-    }
+    //setup_signals
 
     while(1){
-        if(get_exe_command(current_sess) < 0){
-            break;
-        }
-    }
-    session_close();
-}
+        //struct sockaddr_in slave_addr; esto prueba de no usarlo en la llamda server_accept
+        int slave_socket = server_accept(master_socket);
 
+        if(slave_socket < 0){
+            continue;
+        }
+
+        server_loop(slave_socket);
+
+    }
 
 
 /*
+    int port; //esto lo saco el profe pero me tira error en el htons(port) por ahora
+
     int master_socket, slave_socket;
     struct sockaddr_in master_addr, slave_addr;
     socklen_t slave_addr_len;
@@ -113,7 +54,7 @@ void server_loop(int socket){
     char command[BUFSIZE];
     int data_len;
 
-    
+    master_socket = socket(AF_INET, SOCK_STREAM, 0);
     master_addr.sin_family = AF_INET;
     master_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
     master_addr.sin_port = htons(port);
@@ -209,4 +150,6 @@ void server_loop(int socket){
 
     }
     close(master_socket);
-    */
+*/
+    return 0;
+}

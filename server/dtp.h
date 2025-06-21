@@ -1,5 +1,5 @@
-#ifndef SERVERDTP_H
-#define SERVERDTP_H
+#ifndef DTP_H
+#define DTP_H
 
 #include <stdbool.h>
 
