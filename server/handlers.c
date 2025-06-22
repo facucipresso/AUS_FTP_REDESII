@@ -2,8 +2,8 @@
 #include "responses.h"
 #include "pi.h"
 #include "dtp.h"
-//#include "session.h" estas dos no estan definidas en ningun lado
-//#include "utils.h"
+#include "session.h" 
+#include "utils.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -50,7 +50,7 @@ void handle_QUIT(const char *args){
 
     safe_dprintf(sess->control_sock, MSG_221); // goodbye
     sess->current_user[0] = '\0'; // cierra sesion
-    close_fd(sess->control_sock, "client socket"); //close socket
+    close_fd(sess->control_sock, "client socket"); //cierra el socket
     sess->control_sock = -1;
 }
 

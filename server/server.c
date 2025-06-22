@@ -1,86 +1,100 @@
+#include "server.h"
+#include "utils.h"
+#include "config.h"
+#include "pi.h"
+#include "session.h"
+
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <string.h>
+#include <strings.h>
+#include <netinet/in.h>
+#include <errno.h>
 
 
-#include "server.h"
+extern int server_socket;
 
 // return master_socket
 int server_init(const char *ip, int port){
 
-    //este master_socket es local
-    int server_socket = socket(AF_INET, SOCK_STREAM, 0);
-    if(server_socket < 0){
-        //genero el error y le pido al sistema operativo que me diga porque fue el error
-        perror("Error socket cretion : ");
-        return -1;
-        //al retortan -1 el socket maestro, el main va a salir porque salio mal la creacion
-    }
-
-    //primitiva del sistema que me permite alterar el socket
-    const int opt = 1;
-    if(setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, &opt, size(opt)) < 0){
-        perror("Error setting SO_REUSEADDR");
-        close(server_socket);
-        return -1;
-    }
-
     struct sockaddr_in server_addr;
+
+    int listen_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (listen_fd < 0) {
+        fprintf(stderr, "Error creating socket: ");
+        perror(NULL);
+        return -1;
+    }
+
+    // avoid problem with reuse inmeditely after force quiting
+    const int opt = 1;
+    if (setsockopt(listen_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
+        fprintf(stderr, "Error setting SO_REUSEADDR: ");
+        perror(NULL);
+        close(listen_fd);
+        return -1;
+    }
+
+    #ifdef SO_REUSEPORT
+    if (setsockopt(listen_fd, SOL_SOCKET, SO_REUSEPORT, &opt, sizeof(opt)) < 0) {
+        fprintf(stderr, "Error setting SO_REUSEPORT: ");
+        perror(NULL);
+        close(listen_fd);
+        return -1;
+    }
+    #endif
+
+    memset(&server_addr, 0, sizeof(server_addr));
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(port);
 
-    if(inet_pton(AF_INET, ip, &server_addr.sin_addr) < 0){
-        fprintf(stderr, "Invalid IP address %s\n", ip);
-        close(server_socket);
+    if (inet_pton(AF_INET, ip, &server_addr.sin_addr) <= 0) {
+        fprintf(stderr, "Invalid IP address: %s\n", ip);
+        close(listen_fd);
         return -1;
     }
 
-    if (bind(server_socket, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0){
-        perror("Bind failed");
-        close(server_socket);
+    if (bind(listen_fd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
+        fprintf(stderr, "Bind failed: ");
+        perror(NULL);
+        close(listen_fd);
         return -1;
     }
 
-    //veo en que interface esta escuchando el server, ya no pongo ANY_ADDR
-    //hay que instaciar un buffer y llamadas al sistema, por ahora no lo hacemos
+    char ip_buf[INET_ADDRSTRLEN];
+    inet_ntop(AF_INET, &server_addr.sin_addr, ip_buf, sizeof(ip_buf));
+    printf("Listening on %s:%d\n", ip_buf, port);
 
-    // cuantas conexiones puedo tener en listen, el lo pone a SOMA.. con una sola N
-    if(listen(server_socket, SOMAXCONN) < 0){
-        perror("Listen failed");
-        close(server_socket);
+    if (listen(listen_fd, SOMAXCONN) < 0) {
+        fprintf(stderr, "Listen failed: ");
+        perror(NULL);
+        close(listen_fd);
         return -1;
     }
 
-    //si llego aca es porque pude abrir el sistema y retorno el socket
-    return server_socket;
-
+    server_socket = listen_fd;
+    return listen_fd;
 }
 
-int server_accept(int socket){
-    //creo estructura para recibir el nuevo socket, el qeu voy a crear aca
-    
-    struct sockaddr_in slave_addr;
-    socklen_t slave_addr_len; 
-    /*El lo hizo de esta forma pero de error*/
-    //struct sockaddr slave_addr;
-    //socklen_t slave_addr_len = sizeof(slave_addr);
-    int slave_socket = accept(socket, (struct sockaddr *)&slave_addr, &slave_addr_len);
-    if(slave_socket < 0){
-        perror("Accept failed");
-        return -1;
-        //el master no sale porque quiere obtener un cliente
-    }
 
-    //creo struct , no se donde esta definida INET_ADDRLEN
-    char ip_str[INET_ADDRLEN];
-    inet_ntop(AF_INET, &slave_addr.sin_addr, ip_str, sizeof(ip_str));
+int server_accept(int listen_fd, struct sockaddr_in *client_addr) {
 
-    fprintf(stderr, "Connection from %s:%d\n", ip_str, ntohs(slave_addr.sin_port));
+  // client_addr can be NULL if caller doesn't need client info
+  socklen_t addrlen = sizeof(*client_addr);
+  int new_socket = accept(listen_fd, (struct sockaddr *)client_addr, &addrlen);
 
-    return slave_socket;
+  // EINTR for avoid errors by signal reentry
+  // https://stackoverflow.com/questions/41474299/checking-if-errno-eintr-what-does-it-mean
+  if (new_socket < 0 && errno != EINTR) {
+    fprintf(stderr, "Accept failed: ");
+    perror(NULL);
+    return -1;
+  }
+
+  return new_socket;
 }
 
 void server_loop(int socket){
@@ -98,115 +112,9 @@ void server_loop(int socket){
             break;
         }
     }
-    session_close();
+    session_close(); //a esto el lo llamo session_cleanup()
 }
 
 
 
-/*
-    int master_socket, slave_socket;
-    struct sockaddr_in master_addr, slave_addr;
-    socklen_t slave_addr_len;
-    char user_name[BUFSIZE];
-    char user_pass[BUFSIZE];
-    char buffer[BUFSIZE];
-    char command[BUFSIZE];
-    int data_len;
 
-    
-    master_addr.sin_family = AF_INET;
-    master_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
-    master_addr.sin_port = htons(port);
-    bind(master_socket, (struct sockaddr *)&master_addr, sizeof(master_addr)) < 0;
-    listen(master_socket, 5);
-    while (1) {
-        slave_addr_len = sizeof(slave_addr);
-        slave_socket = accept(master_socket, (struct sockaddr *)&slave_addr, &slave_addr_len);
-        printf("%s\n",MSG_220);
-        if (send(slave_socket, MSG_220, sizeof(MSG_220) - 1, 0) != sizeof(MSG_220) - 1) {
-            close(slave_socket);
-            fprintf(stderr, "Error: no se pudo enviar el mensaje.\n");
-            break;
-        }
-
-        if (recv_cmd(slave_socket, command, user_name) != 0) {
-            close(slave_socket);
-            fprintf(stderr, "Error: no se pudo recibir el comando USER.\n");
-            break;
-        }
-        if (strcmp(command, "USER") != 0) {
-            close(slave_socket);
-            fprintf(stderr, "Error: se esperaba el comando USER.\n");
-            continue;
-        }
-        data_len = snprintf(buffer, BUFSIZE, MSG_331, user_name);
-        if (send(slave_socket, buffer, data_len, 0) < 0) {
-            close(slave_socket);
-            fprintf(stderr, "Error: no se pudo enviar el mensaje MSG_331.\n");
-            break;
-        }
-        
-        if (recv_cmd(slave_socket, command, user_pass) != 0) {
-            close(slave_socket);
-            fprintf(stderr, "Error: no se pudo recibir el comando PASS.\n");
-            break;
-        }
-        if (strcmp(command, "PASS") != 0) {
-            close(slave_socket);
-            fprintf(stderr, "Error: se esperaba el comando PASS.\n");
-            continue;
-        }
-        if (!check_credentials(user_name, user_pass)) {
-            data_len = snprintf(buffer, BUFSIZE, MSG_530);
-            if (send(slave_socket, buffer, data_len, 0) < 0) {
-                close(slave_socket);
-                fprintf(stderr, "Error: no se pudo enviar el mensaje MSG_530.\n");
-                break;
-            }
-            close(slave_socket);
-            continue;
-        }
-        data_len = snprintf(buffer, BUFSIZE, MSG_230, user_name);
-        if (send(slave_socket, buffer, data_len, 0) < 0) {
-            close(slave_socket);
-            fprintf(stderr, "Error: no se pudo enviar el mensaje MSG_230.\n");
-            break;
-        }
-
-        while (1) {
-            if (recv_cmd(slave_socket, command, buffer) != 0) {
-                close(slave_socket);
-                fprintf(stderr, "Error: no se pudo recibir el comando %s.\n", command);
-                break;
-            }
-            if (strcmp(command, "QUIT") == 0) {
-                if (send(slave_socket, MSG_221, sizeof(MSG_221) - 1, 0) < 0) {
-                    close(slave_socket);
-                    fprintf(stderr, "Error: no se pudo enviar el mensaje MSG_221.\n");
-                    break;
-                }
-                close(slave_socket);
-                break;
-            }
-            if (strcmp(command, "SYST") == 0) {
-                if (send(slave_socket, MSG_215, sizeof(MSG_215) - 1, 0) < 0) {
-                    close(slave_socket);
-                    fprintf(stderr, "Error: no se pudo enviar el mensaje SYST.\n");
-                    break;
-                }
-                continue;
-            }
-            if (strcmp(command, "FEAT") == 0) {
-                if (send(slave_socket, MSG_502, sizeof(MSG_502) - 1, 0) < 0) {
-                    close(slave_socket);
-                    fprintf(stderr, "Error: no se pudo enviar el mensaje FEAT.\n");
-                    break;
-                }
-                continue;
-            }
-            // Aquí se pueden manejar otros comandos FTP si es necesario.
-        }
-
-    }
-    close(master_socket);
-    */

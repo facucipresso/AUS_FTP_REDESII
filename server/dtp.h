@@ -1,8 +1,8 @@
 #ifndef DTP_H
 #define DTP_H
 
-#include <stdbool.h>
+#define PWDFILE "/etc/ausftp/ftpusers" //esto lo saco
 
-bool check_credentials(char *user, char *pass);
+int check_credentials(char *user, char *pass);
 
 #endif
