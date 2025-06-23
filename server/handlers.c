@@ -2,7 +2,7 @@
 #include "responses.h"
 #include "pi.h"
 #include "dtp.h"
-#include "session.h" 
+#include "session.h" //estas dos no estan definidas en ningun lado
 #include "utils.h"
 
 #include <stdio.h>
@@ -66,13 +66,29 @@ void handle_TYPE(const char *args){
     (void)args;
     (void)sess;
 
-    //placeholder
+
+    if (!args || strlen(args) != 1) {
+    	safe_dprintf(sess->control_sock, MSG_501);
+    	return;
+    }
+
+    if (args[0] == 'I') {
+        //sess->transfer_type = TYPE_BIN  para almacenar en que tipo de dato se van a manejar
+    	safe_dprintf(sess->control_sock, MSG_200); // Modo binario
+    } else if(args[0] == 'A'){
+        //sess->transfer_type = TYPE_ASCII
+    	safe_dprintf(sess->control_sock, MSG_200); // Modo ASCII
+    } else {
+    	safe_dprintf(sess->control_sock, MSG_504); // Comando no implementado para ese parámetro
+    }
+
 }
 
 void handle_PORT(const char *args){
     ftp_session_t *sess = session_get();
     (void)args;
     (void)sess;
+
 
     //placeholder
 }
@@ -98,5 +114,7 @@ void handle_NOOP(const char *args){
     (void)args;
     (void)sess;
 
-    //placeholder
+    safe_dprintf(sess->control_sock, MSG_200); //mensaje sin operacion para no cortar la conexion
+
 }
+
