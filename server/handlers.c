@@ -72,14 +72,12 @@ void handle_TYPE(const char *args){
     	return;
     }
 
-    if (args[0] == 'I') {
-        //sess->transfer_type = TYPE_BIN  para almacenar en que tipo de dato se van a manejar
-    	safe_dprintf(sess->control_sock, MSG_200); // Modo binario
-    } else if(args[0] == 'A'){
-        //sess->transfer_type = TYPE_ASCII
-    	safe_dprintf(sess->control_sock, MSG_200); // Modo ASCII
-    } else {
-    	safe_dprintf(sess->control_sock, MSG_504); // Comando no implementado para ese parámetro
+    if(args[0] == 'I'){
+        safe_dprintf(sess->control_sock, "200 Modo Binario");
+    }else if(args[0] == 'A' || args[0] == 'E' || args [0] == 'L'){
+        safe_dprintf(sess->control_sock, MSG_504); // comando no implementado para ese parametro
+    }else{
+        safe_dprintf(sess->control_sock, MSG_501);//error de sintaxis
     }
 
 }
@@ -89,8 +87,31 @@ void handle_PORT(const char *args){
     (void)args;
     (void)sess;
 
+    if(!sess->logged_in){
+        safe_dprintf(sess->control_sock, MSG_530);//No esta loggeado el usuario
+    }
 
-    //placeholder
+    if(!args || strlen(args) == 0){
+        safe_dprintf(sess->control_sock, MSG_501); //Error de sintaxis
+    }
+
+    int ip1, ip2, ip3, ip4, p1, p2;
+    if(sscanf(args, "%d,%d,%d,%d,%d,%d", &ip1, &ip2, &ip3, &ip4, &p1, &p2) != 6){
+        safe_dprintf(sess->control_sock, MSG_501);//Error de sintaxis
+    }
+
+    //pongo todos ceros en la estructura
+    memset(&sess->data_addr, 0, sizeof(sess->data_addr));
+    sess->data_addr.sin_family = AF_INET;
+    sess->data_addr.sin_port = htons(p1 *256 + p2);
+
+    char ip_str[INET_ADDRSTRLEN];
+    snprintf(ip_str, sizeof(ip_str), "%d.%d.%d.%d", ip1, ip2, ip3, ip4);
+    if(inet_pton(AF_INET, ip_str, &sess->data_addr.sin_addr) <= 0){
+        safe_dprintf(sess->control_sock, MSG_501);
+        return;
+    }
+    safe_dprintf(sess->control_sock, MSG_200);
 }
 
 void handle_RETR(const char *args){
