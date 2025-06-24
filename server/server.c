@@ -21,6 +21,7 @@ extern int server_socket;
 int server_init(const char *ip, int port){
 
     struct sockaddr_in server_addr;
+    int server_socket;
 
     int listen_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (listen_fd < 0) {
@@ -112,7 +113,7 @@ void server_loop(int socket){
             break;
         }
     }
-    session_close(); //a esto el lo llamo session_cleanup()
+    session_cleanup(); //a esto el lo llamo session_cleanup()
 }
 
 

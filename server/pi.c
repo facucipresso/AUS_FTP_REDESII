@@ -26,12 +26,12 @@ static ftp_command_t ftp_commands[] = {
     {NULL, NULL}
 };
 
-
+//no definio la estructura ftp_session_t solo hizo la ftp_command_t
 int welcome(ftp_session_t *sess){
     //mando mensaje FTP bienvenida
-    if(safe_dprintf(sess->control_sock, MSG_220) != sizeof(MSG_220) -1){ 
+    if(safe_dprintf(sess->control_sock, MSG_220) != sizeof(MSG_220) -1){ //safe_dprintf no se de donde sale
         fprintf(stderr, "Send error\n");
-        close_fd(sess->control_sock, "cliente socket"); 
+        close_fd(sess->control_sock, "cliente socket"); //no se donde esta definida close_fd
         return -1;
     }
     return 0;

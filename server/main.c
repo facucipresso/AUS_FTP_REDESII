@@ -15,7 +15,7 @@
 
 
 int main(int argc, char *argv[]){
-    struct arguments args; 
+    struct arguments args; //ver de donde saco esa libreria 'arguments'
 
     if(parse_arguments(argc, argv, &args) != 0){
         return EXIT_FAILURE;
@@ -33,7 +33,7 @@ int main(int argc, char *argv[]){
 
     while(1){
         struct sockaddr_in slave_addr; //esto prueba de no usarlo en la llamda server_accept
-        int slave_socket = server_accept(master_socket, &slave_addr); //modifico la f server_accept
+        int slave_socket = server_accept(master_socket, &slave_addr); //esto modifico la f server_accept
 
         if(slave_socket < 0){
             continue;
