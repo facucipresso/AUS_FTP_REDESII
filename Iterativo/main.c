@@ -1,8 +1,8 @@
-//#include "config.h"
+#include "config.h"
 #include "arguments.h"
-#include "server.h" //lo comento para hacer pruebas
+#include "server.h" 
 #include "utils.h"
-//#include "signals.h"
+#include "signals.h"
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -15,7 +15,7 @@
 
 
 int main(int argc, char *argv[]){
-    struct arguments args; //ver de donde saco esa libreria 'arguments'
+    struct arguments args; 
 
     if(parse_arguments(argc, argv, &args) != 0){
         return EXIT_FAILURE;
@@ -29,7 +29,7 @@ int main(int argc, char *argv[]){
         return EXIT_FAILURE;
     }
 
-    //setup_signals();
+    setup_signals();
 
     while(1){
         struct sockaddr_in slave_addr; //esto prueba de no usarlo en la llamda server_accept
